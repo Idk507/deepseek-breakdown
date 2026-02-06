@@ -1,10 +1,10 @@
-1.Deepseek basics 
+ 1.Deepseek basics 
 
 2. LLM Architecture
    
-4. Attention is all you need 
+3. Attention is all you need 
 
-3.1. tokenziation , position encoding 
+4. tokenziation , position encoding 
 
 5. Self Attention 
 
