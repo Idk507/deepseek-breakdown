@@ -170,6 +170,7 @@ $$V_1 = XW_1^V = \mathbb{R}^{4 \times 512} \times \mathbb{R}^{512 \times 64} = \
 $$S_1 = Q_1K_1^T = \mathbb{R}^{4 \times 64} \times \mathbb{R}^{64 \times 4} = \mathbb{R}^{4 \times 4}$$
 
 Example (with random values):
+
 $$S_1 = \begin{bmatrix}
 20.5 & 15.2 & 8.3 & 12.1 \\
 16.8 & 22.3 & 10.5 & 14.2 \\
