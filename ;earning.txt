@@ -1,0 +1,514 @@
+1.Deepseek basics 
+2. LLM Architecture 
+3. Attention is all you need 
+3.1. tokenziation , position encoding 
+4. Self Attention 
+5. Casual Attention
+6. Multi head attention
+7. Key value cache 
+8. Multi query attention 
+9. Grouped query Attention
+10. Multi head latent attention
+11. integer and binary positional encodings 
+12. sinsoidal positional encoding 
+13. Rotary position encoding 
+14. Deepseek implemented latent attention
+15. mixture of experts
+16. deepseek rewrote moe 
+17. multi -token prediction
+18. deepseek rewrote multi-token prediction
+19. llm quantization
+20. deepseek rewrote quantization
+
+
+
+
+Causal Attention  :  - >Masked attention ,
+dropout -> some neurons dont learn anything so we are dropping it out
+
+
+queries * keys T -> scaling the results ->  attntion score masked -> softmax 
+
+Multi Head Attention : 
+===================
+    input embedding -> self attention -> context engineering (self head attention)
+    input embedding -> linear layers (q,k,v) -> split into heads -> scaled dot product attention -> concat heads -> linear layer
+
+having  a 2 self attention instead of one .
+
+input embedding -> start with a single w_q,w_k,w_v  (8,4 matrix each) -> split the w_q,w_k,w_v into multiple heads 
+-> multiple copies of q,k,v matrixes are created -> attention scores of each head 
+-> merge the context matrix for both both heads -> each cnotext matrix can merge (head1 context matrix  , head2 context matrix)
+-> computing the attention score for keys after scaling it -> add drop out if required 
+-> get the context for head1 and for head 2... -> merge the context matrix in both the head 
+
+
+1. start with the input (b,num_tokens, d_in) = (1,3,6)
+2. head_dim = d_out/n_head 
+decide d_out, n_heads 
+
+3. now x = (1,3,6) -> wq_(d_in,d_out) ,w_k(d_in,d_out),w_v(d_in,d_out)
+have the trainable matrix
+
+4. multiply those k,q,v 
+ Queris (1*3*6) ; 1-batch_size,3 -> n_token,6 ,d_out
+
+ 5. unroll the last dimension
+(b,n_token,d_out) -> (b,n_token,n_head,head_dim)
+d_out = head_dim * n_head 
+
+(1,3,6) -> (1,3,2,3)
+
+
+
+Key-value Cache :
+=================
+
+
+
+Multi head attention : 
+====================
+
+
+Understand Grouped Query Attention :
+==================================
+
+
+Multi head latent attention :
+=========================== 
+Low rank key value joint 
+
+l*b*n*h*s*2*2
+2- > byte
+2 -> number of caches per transformer 
+
+low cache size + good model performance -> multi head latent query attention
+
+size of KV cache = l*b*(n*h)*s*2*2 
+take n*h -> this can be reduced 
+
+what if we dont have to cache the keys and value separealy and what if we cache only one matrix 
+and reduce the n*h 
+here instead of 2 where are caching 1 and n_l
+
+with Latent Space : 
+
+projecting the input embedding into latent space 
+
+Wd KV -> X*WdKV
+d->down projection 
+CKV -> this is the latent matrix will be cache 
+
+matrix -> x(4,8) - Latent ( Wdkv (8,4)) - X * WdKV ->  CKV ( WuK * WuV)
+
+How does the adding the latent matrix help ?
+
+Q = X wq 
+CKV = X Wdkv 
+K = CKV * Wuk = X * Wdkv * Wuk
+V = CKV * Wuv = X * Wdkv * Wuv
+
+    -> X Wq * ( Wuk^T Wdkv^T X^T)
+    -> X(W_q W_uk^T)(X Wdkv^T)X^T 
+QK^T -> X Wdkv Wuv 
+
+X * Wdkv -> cache 
+what happends when a new token comes in ? 
+
+q : X (w_q Wuk^T) -> query vector 
+to get updated cache -> compute the kv vector , multiply with Wdkv 
+-> append the latent veccto -> update the kv cache 
+-> attention score and attention weights 
+
+Absorption trick in Multi head latent attention
+how does adding the latent matrix help ?
+Q = X*W_q
+C_kv = X * W_dkv 
+K = C_kv * W_uk = X * W_dkv * W_uk 
+V = C_kv * W_uv = X * W_dkv * W_uv 
+
+The absorption trick 
+
+the attention scores = Q * K^Themerge the W_q and W_Uk^T 
+X * W_dkv = C_kv 
+
+this X ( W_q * W_uk^T) - is fixed 
+
+contest vector matrix = attention _matrix * V  -> logit matrix 
+
+
+when the new token comes -> we first compute the absorb query vector -> compute the vector -> append it to earlier query value 
+
+here we are caching the latent KV cache 
+
+size of the cache = 2 * l* b* s * dl 
+
+
+for deepseek = 2* n * h 
+
+group by heads = n_head, head-dim, latent_dim 
+
+
+Integer and binary positional encoding 
+======================================
+
+positional embeddings : 
+lower indices osicallates the faster 
+  each osicallates at every 2^n position 
+  lower indices -> imediate changes
+  higher indices ->  later changes 
+
+integer position encoding - it is graph , it is discontiuned 
+
+sinusoidal positional enoding 
+=============================
+continuous position encoding 
+sin - even 
+cos - odd 
+lower indices - osicallates more  often 
+higher indices - osicallates less often
+ why i comes in denomitor ->  lower indices oscillates than the higher than higher indices
+
+Rotary position encoding
+======================= 
+instead of adding the positional encoding to the input embedding we are multiplying it 
+inject some information about the relative or absolute position of the token in the path 
+given the pos encoding of one token at position "pos" , the isn and cos make it easier to possible 
+
+let say i rotate the value for teta 
+
+v1 = (cos0,sin0)
+ v2 = (cos(0+01) , sin(0+01))
+
+ 0 = w_1i * p  
+
+if we know the position encoding version of the new position, with that we can 
+rotate the initial vector .
+the reason we encode alternate indicies by sine and cosine is that to rotate the position 
+
+make the oscillation bettre 
+relaion position encoding are just the rotation togerther 
+rotation ensure that the relative shifts map to fixed angular differences,
+which then translate into predictable , learnable attention patterns 
+like focusing more than a patterns 
+
+probleme with sinusoidal encoding : 
+the position embedding are directly added to token embedding 
+this pollutes the semantic informaiton carried by token embedding 
+
+the influence of one token is carried by queries and keys matrix 
+
+instead of making the changes in the same position vector , how about 
+rotating the vector based on the requirements to capture the 
+information 
+
+the magnitude and key vector remains same .
+
+the rotatory embedding - focusing on the query and key vector not the embedding 
+
+
+Rotatory Position Encoding : 
+========================== 
+1.instead of adding pos embedding in data processing , why dont we add in attention 
+2. why dont we had it in query and key vector 
+
+
+the main idea is 
+
+0 = w_i * p 
+w_i = 1/ (1000^(2i/d))
+p = position
+
+here p remains the same where i gonna change 
+the magnitude of the new vector is same as the magnitude of the initial vector 
+
+take the original q vector -> look into the position 
+-> split it -> rotate the vector -> encode this based on position 
+-> for a positionp -> as indices increases ,t he amount of rotation decreases 
+
+include positional infromation, we dont ass any vector to the query vector 
+
+the rotation matrix * original matrix ->
+best way to maintain the magnitude -> instead adding , just rotate it 
+
+the exact same embedding is similar to key vector as well.
+lower range -> small shifts 
+higer indices - > long range dependencies 
+
+how deepseek implemented multi head latent attention
+===================================================
+
+attention scores = Q * K^T 
+
+Absorbed query - latent attention 
+
+why latent attention actually works ?
+only need to cache the latent matrix , where the latent attention implement a absorption tricj 
+
+Q* K^T 
+
+Rpos( X W_q) * Rpos(Quk^T * WsKV^T X ^T)
+
+now Wq and W_uk^T cannot be abosrbed 
+if w_q and W_uk^T cannot be abosrbed ,then the latent is not attained 
+
+so reocompute the key metrics during the training 
+
+RoPE is incompatible to Low Rank KV Compression
+
+the solution is Decoupled row :
+ 
+ if i cannot abosorb W_q and Wuk matrix then break down the attention scores 
+
+ Q*K^T -> [Q_c : Q_r] . [K_c .K_r]
+
+where Q_c -> ROPE is not applied
+ where Q_r -> Rope is applied 
+
+
+ q_c . K_c^T + q_r . K_cr^T
+
+
+ the first part dont do ROPE 
+ the second part we do ROPE 
+
+W_dq -> Q_uq -> (here we downsample and then upsample the query)
+ |
+ d`_c * c_q -> latent query vector
+
+ k_r : q_r 
+
+ q_kr -> dh_r
+
+
+q_c * k_c^T + q_r * k_r^T -> attention scores
+
+path 1               path 2 
+
+Q_c                  compute KV vector 
+
+x(W_qd,W-uq,W-uk^T)   only need to cache the latent kv 
+
+                    update the kv cache 
+
+
+cache memory size compression :
+mha : 2*2*l*b*s*n*h 
+mqa : 2*2*l*b*s*h
+gqa : 2*2*l*b*s*g*h 
+mla : 2*l*b*s*dl 
+mla + rope : 2 * l* b* s * (dl+dhr) (dl -> 4*h,dh -> h/2)
+
+
+
+
+
+Mixture of Experts 
+=================
+
+FFNN 
+|
+Layer norm 
++
+Attention
+| 
+Layer norm
+
+
+* Sparsity  : 
+* load balancing : slect how many experts we want to route 
+every token will only set to a selected number  of experts
+
+which expert ? how much weightage we have to give to each token 
+
+solution : Routing matrix 
+
+number of rows : 
+no of columns : each onr corresponds to each expert .
+
+Auxiliary loss version :
+========================
+
+in moe models , the routing mechanism selects a subset of experts for each input .
+
+ the Auxiliary loss , we first start with the expert selector weight 
+ matrix which consists of the experts assigned to every token 
+ and the probabilities assigned to every expert .
+
+ to calculate the quantity if expert importance :
+
+ each column of the expert selector weight the probabilities 
+ that are assigned to the particular expert .
+
+ Balanced MOE Model -> equal importance to all the experts
+ the expert importance value is similar to all the experts from the expert selector matrix 
+
+
+ construct the loss , the loss term is high if the E1,E2 and E3 have lot  if variation,
+
+ cv = standard deviation / mean 
+
+ Auxiliary loss = scaling factor * (cv) * (cv) 
+
+ co-efficient of variation -> cv 
+
+ Aux. loss -> lambda (the scaling factor)
+
+ Aux.loss = lambda * (cv)^2
+    +
+llm training loss (next token pred loss)
+
+addition of this loss term ensure that the expert importance is unigormly distributed .
+
+
+Load balancing :
+==============
+the assigning equal importance to the tokens != assigning equal importance to tokens 
+
+for example : summation of each experts to be equal ,E1 = E2 
+
+but you see here , that may be E1 took only one 1 expert whereas Expert 2 took all.
+where E1 has higher confidence , E2 has lower confidence .
+
+
+As a result , we want to make sure "load" of every expert is routed uniformly .
+
+Expert importanc -> Router probabilities (pi) 
+
+the next step is to calculate the fraction of tokens dispatched to each expert .
+again , this can be calculated fomr the expert selector weight matrix.
+
+the fraction of tokens dispatched to each expert is the summation of the probabilities assigned to each expert for all the tokens divided by the total number of tokens .
+
+
+Sumation (fipi) ; f1p1+f2p2 
+
+where fi is the fraction of tokens dispatched to expert i and pi is the probability assigned to expert i for each token .
+
+
+when fi and pi are lower together then it meanthere is not mismatch and increase the stability 
+and also increase the efficieny of the moe .
+
+-> scaling fator * expet loss (fi * pi)
+
+capacity factor : sometimes the the tokens are routed only to one expert and not to the other factor .
+to address this 
+Expet capaity = token per batch / number of expert * capacity factor 
+
+tokens per batch = batch size * sequence length * top_k 
+
+top_k =  number of expets choosen each token (load balancing)
+
+if capacity factor = 1 , each expert ger qven split
+if greater than 1 , it can handle more than the load balacning 
+if less than 1 , some tokens may get dropped if all experts are full
+
+if the scaling factor is small , the lambda is useless .
+
+lambda high , training loss become low 
+lambda low, training loss become high
+
+
+Loss- free balancing : (deepseek rewrote MOE)
+=============================================
+
+load balance without loss term 
+
+Auxiliary loss free load balancing :
+
+if the first token comes in -> it routed to expert 2 or 3 similarly to other tokens as follows 
+
+1. first find the avg load per expert . -> number of token routed /total number of token routed 
+    based on it we can it is overloaded or underloaded
+    based on the average load per expert , we can say that it is underload or overload.
+    to get the underload , overload -> take the avg - number of tokens for each expert column 
+
+once capture the load balancing error , then the concept called bias is introduced
+
+b_i = b_i + u * sign(load violation error)
+
+b_i = b_i + u
+b_i = b_i - u 
+
+if the expert have heavy load , reduce the biad
+if the expert has low load, increase the load 
+
+By dynamically updating the bias with respect to the loss term , they achieved the result.
+
+
+shared experts and fine-grained experts 
+======================================
+issues:
+1.knowledge hybridity -> limited experts
+2. knowledge redudancy -> general knowldge that the experts do share the same knowledge 
+
+specialized experts :
+====================
+
+each expert is trained on a specific domain or task
+
+Towards ulitmate expert specializtion :
+instead of having a limited experts , we have few number of experts to address all the cases ,
+to prevent the knowledge redudancy why dont we have a shared experts and specliazed experts in it.
+
+In shared epxerts -> they divided the experts into two , all the token pass and token selectively passed (routed experts)
+to reduce the redudancy
+
+then the output from t4he shared experts  + routed experts are commuted together and return the result .
+
+makeMOE (reference)
+
+
+Multi Token prediction :
+
+predict multiple(three) token at a inference time .
+here the model learns about longer range structure and grammar  and also 
+the multiple future steps simultaneously .
+
+1. denisification of training signals 
+2. improve data efficieny
+3.MBPP -> most basic python programming , HumanEval ,APPS/Intro 
+
+
+how deepseek implemented multi token prediction :
+
+
+for every single input token we are going to predict three token in future .
+for every prediction we need two inputs, (hidden and input embeddings)
+input embedding for k=1 ,at the position i=1; for k=2 ,=2;...
+for the first input embedding , the hidden state will be 0 
+for the second input embedding , the hidden state will be the output of the first prediction
+
+first we have a head 1-> merged matrix -> projection matrix-> transformer layer -> hidden state -> goes to head 2 -> ....
+--> shared un-embedding matric (logits matrix) -> predict tokens 
+and then we predict the next tokens and combined together to get 3 tokens .
+
+for each token position i, we predict i+1, i+2, i+3,...
+
+here we do the RMS(input) + RMS(hidden state) -> head -> merged embeddings 
+-> linear projection -> transformer input 
+
+transformer input - > transformer block -> hidden state 
+
+after predicting the token , we have to predict the loss 
+
+predict token 1 <-> actual token 1 -> Loss 
+ .....
+    = Total loss
+
+LLM Quantization :
+=================
+
+Mixed precision quanitzation :
+
+input -> forward propogation (y=Wx) {y -computed initally in FP32 for numerical stability, then converted back to BF16,W-maintained in high precision , the convertd to FP8}
+
+backpropagation :
+================
+
+gradients -> computed in FP32 for numerical stability, then converted back to BF16 for weight updates
+
+what is BF16 ? 
+BF16 is a 16-bit floating point format that has the same exponent range as FP32 but with only 8 bits for the significand (mantissa) instead of 11 bits in FP16.
+ This allows it to maintain a similar dynamic range to FP32 while reducing the precision, which can be beneficial for certain machine learning workloads where the full precision of FP32 is not necessary.
+  BF16 is particularly useful for training deep neural networks, as it can help reduce memory usage and improve computational efficiency without significantly impacting model accuracy.
