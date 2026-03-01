@@ -11,8 +11,6 @@ This file contains:
 6. Training utilities and visualizations
 7. Performance analysis
 
-Author: Educational Implementation
-Date: 2026
 """
 
 import numpy as np
